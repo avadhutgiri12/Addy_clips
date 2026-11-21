@@ -1,0 +1,10 @@
+.git
+.env
+data
+node_modules
+**/__pycache__
+**/.next
+*.mp4
+*.mov
+*.mkv
+

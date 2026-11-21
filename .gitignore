@@ -1,0 +1,17 @@
+.env
+.next/
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/*
+!data/*/
+data/*/*
+!data/*/.gitkeep
+*.mp4
+*.mov
+*.mkv
+*.sqlite*
+*.log
+

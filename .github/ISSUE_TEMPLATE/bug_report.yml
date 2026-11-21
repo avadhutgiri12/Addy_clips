@@ -1,0 +1,21 @@
+name: Bug report
+description: Report a problem in Addy Clips
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Do not attach private video or API keys.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Addy Clips version or commit
+
