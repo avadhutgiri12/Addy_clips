@@ -25,7 +25,7 @@ def migrate():
         CREATE TABLE IF NOT EXISTS projects (
           id TEXT PRIMARY KEY, title TEXT NOT NULL, source_title TEXT,
           source_url TEXT, source_path TEXT, duration REAL NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL, source_type TEXT NOT NULL DEFAULT 'local'
         );
         CREATE TABLE IF NOT EXISTS jobs (
           id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -39,10 +39,17 @@ def migrate():
           title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', hashtags_json TEXT NOT NULL DEFAULT '[]',
           start REAL NOT NULL, end REAL NOT NULL, score INTEGER NOT NULL DEFAULT 0,
           category TEXT NOT NULL DEFAULT 'Action and combat', caption_json TEXT NOT NULL DEFAULT '[]',
+          evidence_json TEXT NOT NULL DEFAULT '{}',
           vertical_path TEXT, landscape_path TEXT, thumbnail_path TEXT, status TEXT NOT NULL,
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         """)
+        project_columns = {r[1] for r in c.execute("PRAGMA table_info(projects)")}
+        if "source_type" not in project_columns:
+            c.execute("ALTER TABLE projects ADD COLUMN source_type TEXT NOT NULL DEFAULT 'local'")
+        clip_columns = {r[1] for r in c.execute("PRAGMA table_info(clips)")}
+        if "evidence_json" not in clip_columns:
+            c.execute("ALTER TABLE clips ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '{}'")
 
 def row_dict(row):
     return dict(row) if row else None
@@ -51,5 +58,6 @@ def clip_dict(row):
     d = dict(row)
     d["hashtags"] = json.loads(d.pop("hashtags_json"))
     d["captions"] = json.loads(d.pop("caption_json"))
+    d["evidence"] = json.loads(d.pop("evidence_json", "{}"))
     return d
 

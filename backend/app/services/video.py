@@ -11,5 +11,6 @@ def probe(path: Path) -> dict:
     if not video:
         raise ValueError("The selected file does not contain a video stream.")
     fmt = data.get("format", {})
-    return {"duration": float(fmt.get("duration") or 0), "width": int(video.get("width") or 0), "height": int(video.get("height") or 0), "format": fmt.get("format_name", "video")}
+    audio = next((s for s in data.get("streams", []) if s.get("codec_type") == "audio"), None)
+    return {"duration": float(fmt.get("duration") or 0), "width": int(video.get("width") or 0), "height": int(video.get("height") or 0), "video_codec": video.get("codec_name"), "audio_codec": audio.get("codec_name") if audio else None, "format": fmt.get("format_name", "video")}
 

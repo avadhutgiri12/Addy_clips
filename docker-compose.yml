@@ -32,6 +32,10 @@ services:
     environment:
       DATA_DIR: /app/data
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      LIVE_BUFFER_MINUTES: ${LIVE_BUFFER_MINUTES:-10}
+      TWITCH_CHAT_USERNAME: ${TWITCH_CHAT_USERNAME:-}
+      TWITCH_CHAT_OAUTH_TOKEN: ${TWITCH_CHAT_OAUTH_TOKEN:-}
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
       API_INTERNAL_URL: http://api:8000
     volumes:
       - ${DATA_DIR:-./data}:/app/data

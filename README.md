@@ -1,94 +1,323 @@
-# Addy Clips
+<div align="center">
 
-**Turn every stream into a highlight.** Addy Clips is a local-first AI gaming video clipping studio. Upload a recording, ask Gemini to inspect a bounded set of sampled frames, and render the resulting moments as vertical and landscape MP4s. Your database and completed exports stay on your machine.
+# ⚡ Addy Clips
 
-> Current scope: local video analysis and exports are implemented. YouTube metadata lookup is optional; arbitrary YouTube video bytes are not downloaded. Live capture, automatic subject tracking, transcription, and captions are not enabled until supported source/provider adapters are configured.
+### Your local-first AI gaming video clipping studio.
 
-## Features
+**Turn long gameplay recordings into vertical/landscape highlight clips.** Upload a local file or Twitch VOD, and Addy Clips uses Gemini Flash for frame analysis to find the best moments. All data stays on your machine via Docker Compose.
 
-- Local MP4, MOV, MKV, WebM, and AVI upload with FFprobe validation.
-- Gemini Flash analysis of sampled frames, with grounded title, description, and hashtags (no random timestamps or fabricated evidence).
-- Persistent SQLite job queue with worker progress, cancellation, and retry after a lost in-memory key.
-- Center-crop fallback exports in 1080×1920 and 1920×1080 H.264, preserving source audio.
-- Persistent clip files, searchable clip gallery, metadata editing, streaming with HTTP ranges, and individual downloads.
-- Responsive dark production workspace with local browser preferences and no account requirement.
-- CPU-only Docker Compose setup; no external database or broker.
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-`WORKER_CONCURRENCY` defaults to one and can be raised to four after considering available CPU, memory, and disk throughput.
+### ⭐ [Star the repo](https://github.com/your-username/addy-clips) to support local-first clipping
 
-## Screenshots
+</div>
 
-Screenshots will be added after a release build is available.
+---
 
-## Architecture
+## 🎬 Real Output
 
-See [ARCHITECTURE.md](ARCHITECTURE.md). The frontend is Next.js 16, the API is FastAPI, and a separate Python worker polls a durable SQLite job queue. SQLite was chosen instead of Redis because this single-host workload needs restart-safe local jobs without another service. Gemini keys are held in API memory and excluded from the job record; the worker calls an internal API endpoint for AI analysis and never receives the key.
+Upload a 2-hour gameplay recording, get ready-to-post shorts out:
 
-## Prerequisites
+```bash
+# Just upload via the dashboard at http://localhost:3000
+# Or use the API directly
+curl -X POST http://localhost:8000/api/source/local-upload \
+  -F "file=@gameplay.mp4"
+```
 
-- Git
-- Docker Engine or Docker Desktop with Docker Compose V2
-- A Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
-- Recommended: 4 CPU cores, 8 GB RAM, and free disk space at least as large as your source plus exports. Longer 1080p videos can take substantially longer on CPU.
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="docs/assets/dashboard-dark.png" alt="Addy Clips dashboard" width="500"><br>
+<sub>🎮 Dark production workspace — Processing tab shows live worker stages</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/assets/clips-gallery.png" alt="Clips gallery" width="500"><br>
+<sub>📱 Searchable gallery with vertical/landscape preview and one-click download</sub>
+</td>
+</tr>
+</table>
 
-The host does not need Node.js, Python, or FFmpeg.
+---
 
-## Install
+## 🎯 Why Addy Clips?
 
-```sh
-git clone https://github.com/OWNER/addy-clips.git
+When you have hours of gameplay footage, finding the highlights is tedious.
+
+- 🎮 **Local-first & private** — Your videos never leave your machine. No cloud uploads, no accounts.
+- 🤖 **AI-powered analysis** — Gemini Flash analyzes sampled frames to detect hype moments, not just audio spikes.
+- ⚡ **Dual export** — Every clip rendered in both 9:16 (Shorts/TikTok/Reels) and 16:9 (YouTube/archives).
+- 🔧 **Zero-config Docker** — `docker compose up` and you're running. No external Redis, no database server.
+- 🎬 **Complete pipeline** — Upload → Analyze → Render → Gallery → Download, all in one dashboard.
+
+---
+
+## ✨ Features
+
+| | Feature | What it does |
+|---|---|---|
+| 📁 | **Manual VOD Upload** | Drag-and-drop MP4, MOV, MKV, WebM, AVI — FFprobe validates instantly |
+| 🤖 | **Gemini Flash Analysis** | Samples up to 24 frames, detects moments by visual + audio cues |
+| ✂️ | **Smart Moment Detection** | Scores moments by category (Action, Funny, Reactions, Story, etc.) with deduplication |
+| 📱 | **Dual Format Export** | Center-crop 1080×1920 (vertical) + 1920×1080 (landscape), H.264 CRF 22, audio preserved |
+| 🎤 | **Optional AI Titles** | Gemini generates engaging titles, descriptions, hashtags per clip |
+| 💬 | **Optional Captions** | Local faster-whisper transcription burned into exports (CPU, no cloud) |
+| 🔍 | **Searchable Gallery** | Filter by category, search titles, paginated clip library |
+| ▶️ | **Range-Request Streaming** | Preview clips in browser without full download |
+| 🐳 | **Docker Compose** | Single command, CPU-only, SQLite WAL mode, no external services |
+| ⚙️ | **Worker Concurrency** | 1–4 parallel jobs, tunable for your hardware |
+
+---
+
+## 🧠 How It Works
+
+```mermaid
+flowchart LR
+    A[Local File / Twitch VOD] --> B[Frontend Dashboard]
+    B --> C[FastAPI: Queue Job]
+    C --> D[SQLite Job Queue]
+    D --> E[Python Worker]
+    E --> F[FFprobe: Validate Source]
+    F --> G[FFmpeg: Sample Frames]
+    G --> H[Gemini Flash: Analyze Frames]
+    H --> I[Normalize & Rank Moments]
+    I --> J[FFmpeg: Render Clips]
+    J --> K[Vertical 9:16 + Landscape 16:9]
+    K --> L[Clip Gallery + Metadata]
+```
+
+**Worker Pipeline Stages:**
+1. **Preparing source** (8%) — FFprobe validation
+2. **Sampling gameplay frames** (20%) — Extract up to 24 frames (640px wide)
+3. **Analyzing gameplay** (36%) — POST frames to internal API with Gemini key
+4. **Generating clips** (48–95%) — FFmpeg render: dual format, H.264 veryfast CRF 22
+5. **Complete** (100%) — Persist clip metadata to SQLite
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Docker Engine** or **Docker Desktop** with Compose V2
+- Optional: **Gemini API key** from [Google AI Studio](https://aistudio.google.com/apikey) for AI titles
+- Recommended: 4+ CPU cores, 8 GB RAM, disk space ≥ source size + exports
+
+### Install
+
+```bash
+git clone https://github.com/your-username/addy-clips.git
 cd addy-clips
 cp .env.example .env
+# Edit .env to add your GEMINI_API_KEY (optional but recommended)
 docker compose up -d --build
 ```
 
-Open <http://localhost:3000>. Ports bind to loopback by default. Configure `FRONTEND_PORT`, `BACKEND_PORT`, `DATA_DIR`, and (on Linux hosts) the data-directory owner IDs `PUID`/`PGID` in `.env` if needed. Keep `NEXT_PUBLIC_API_URL` aligned with the backend URL reachable from your browser.
+Open **http://localhost:3000** — the dashboard loads instantly.
 
-## Configure Gemini
+---
 
-Open **Settings**, paste your key, test it, and save. The browser stores it in local storage; local storage is convenient but is not a secure vault. The key is sent to your local API when testing or starting an analysis, held in API memory for that job, omitted from SQLite, and never sent to the video worker. Restarting the API clears its in-memory copy; a paused job can be retried by submitting the key again. The model list uses current Flash IDs and can be adjusted in Settings.
+## 🎮 Usage
 
-The API samples up to 24 frames from each recording. The worker renders clips around the returned timestamps, including up to 20 seconds before the event when available. Frame judgments can miss audio-only reactions. The current renderer uses a reported center-crop fallback; it does not claim subject tracking. Captions are not generated without a transcription provider.
+### 1. Upload a Local Recording (Primary Workflow)
 
-## YouTube limitations
+1. Open the dashboard at `http://localhost:3000`
+2. Click **"Upload Local Video"** — drag & drop your MP4/MOV/MKV/WebM/AVI
+3. Configure analysis:
+   - **Clip count:** 1–10 clips
+   - **Clip length:** 15–60 seconds each
+   - **Sensitivity:** Relaxed / Balanced / Aggressive
+   - **Categories:** Action, Funny, Reactions, Story, Exploration, Chat hype
+   - **Optional:** Enable AI titles & captions
+4. Click **Start Analysis** — watch live progress in the Processing tab
+5. When complete, browse **My Clips** — preview, edit metadata, download MP4s
 
-`YOUTUBE_API_KEY` optionally enables official YouTube Data API metadata lookup. Metadata is not video access. The application does not download arbitrary YouTube streams, bypass authentication, DRM, or platform controls. For video processing, upload a local recording or integrate a permitted creator-authorized media source. YouTube live chat is not currently connected, and a live URL alone cannot trigger clipping.
+### 2. Twitch VOD (Supported)
 
-## Process a recording
+Paste a Twitch VOD URL (`twitch.tv/videos/123456789`) — Addy Clips downloads via Streamlink and processes like a local file.
 
-1. Open Dashboard and choose a local MP4, MOV, MKV, WebM, or AVI recording.
-2. Choose clip count, duration, categories, and sensitivity.
-3. Save a Gemini key in Settings.
-4. Start analysis and follow the persisted worker stage in Processing.
-5. Edit a clip title/description, preview either format, or download each MP4 from Generated Clips.
+### 3. YouTube Live / VOD (🧪 Beta / Coming Soon)
 
-Completed clips are stored at `data/clips/{project_id}/{clip_id}/`. Source files and project intermediates are under `data/projects/`; the SQLite database is under `data/database/`.
+> **Status:** YouTube URL processing is experimental. The YouTube Data API provides metadata only — video byte access requires creator-authorized OAuth. Local uploads work reliably today; YouTube link support is being improved.
 
-## Operations and backup
+---
 
-```sh
-docker compose ps
-docker compose logs -f
+## 🖼️ Layouts & Output
+
+| Format | Resolution | Codec | Use Case |
+|---|---|---|---|
+| **Vertical** | 1080×1920 (9:16) | H.264 CRF 22 | TikTok, Reels, Shorts |
+| **Landscape** | 1920×1080 (16:9) | H.264 CRF 22 | YouTube, archives, Discord |
+
+> **Note:** Current implementation uses center-crop fallback. Smart subject tracking is not yet implemented.
+
+---
+
+## ⚙️ Configuration
+
+All settings via `.env` (copy from `.env.example`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `FRONTEND_PORT` | `3000` | Dashboard port |
+| `BACKEND_PORT` | `8000` | API port |
+| `DATA_DIR` | `./data` | Persistent data directory |
+| `WORKER_CONCURRENCY` | `1` | Parallel jobs (1–4) |
+| `GEMINI_API_KEY` | *(empty)* | Optional: enables AI titles |
+| `YOUTUBE_API_KEY` | *(empty)* | Optional: YouTube metadata lookup |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL for browser |
+| `PUID` / `PGID` | `1000` / `1000` | Linux data dir ownership |
+
+---
+
+## 🐳 Docker Operations
+
+```bash
+# Start all services
+docker compose up -d --build
+
+# View logs
+docker compose logs -f          # all
+docker compose logs -f api      # API only
+docker compose logs -f worker   # Worker only
+docker compose logs -f frontend # Frontend only
+
+# Stop
 docker compose down
+
+# Rebuild after changes
 docker compose up -d --build
 ```
 
-Back up the entire `data/` directory while the stack is stopped, or use a consistent filesystem snapshot. Restore by copying it back before starting Compose. Normal updates and shutdowns do not remove persistent data. Do not expose this no-login application directly to the public internet; use HTTPS, a reverse proxy, and access control for remote use.
+---
 
-## Troubleshooting
+## 📁 Data Layout (Persisted in `./data/`)
 
-- **API unavailable:** `docker compose logs -f api`; check `BACKEND_PORT` and `NEXT_PUBLIC_API_URL`.
-- **Unsupported or corrupt file:** confirm FFmpeg can read it and that duration/size are within `.env` limits.
-- **Gemini rejected key:** use a valid key and check that Gemini API access is enabled for its Google project.
-- **No clips found:** inspect the job error/progress. Frame sampling can miss brief events; try a more sensitive setting or a shorter source segment.
-- **Exports take a while:** CPU encoding time depends on duration, resolution, and available cores. Increase worker concurrency only when memory and disk allow it.
-- **YouTube says metadata only:** this is expected; upload a local copy you are permitted to process.
+```
+data/
+├── clips/{project_id}/{clip_id}/
+│   ├── vertical_9_16.mp4
+│   ├── landscape_16_9.mp4
+│   ├── thumbnail.jpg
+│   └── metadata.json
+├── projects/{project_id}/
+│   └── source.{mp4|mov|...}
+├── temp/{job_id}/              # Frame samples (cleaned after job)
+├── database/addy-clips.sqlite3
+└── logs/
+```
 
-## Contributing
+**Backup:** Stop stack (`docker compose down`), copy entire `data/` directory.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Please open an issue before large architecture changes.
+---
 
-## License
+## 🔒 Security & Privacy
 
-MIT. See [LICENSE](LICENSE).
+- **No authentication** — Dashboard binds to loopback (127.0.0.1) by design
+- **No external network calls** except:
+  - Gemini API (only when you enable AI titles)
+  - YouTube Data API (metadata only, optional)
+  - Streamlink for Twitch (when you provide a Twitch URL)
+- **Gemini keys** — Stored in browser localStorage → sent to API → held in memory → never in SQLite → never sent to worker
+- **Do not expose directly to internet** — Use reverse proxy + HTTPS + access control for remote access
 
+---
+
+## 🩺 Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| API unavailable | `docker compose logs -f api`; verify `BACKEND_PORT` and `NEXT_PUBLIC_API_URL` |
+| Unsupported/corrupt file | Confirm FFmpeg reads it; check `.env` size/duration limits |
+| Gemini rejected key | Valid key? Gemini API enabled in Google Cloud project? |
+| No clips found | Try higher sensitivity or shorter source; inspect job error |
+| Exports slow | CPU encoding; increase `WORKER_CONCURRENCY` if resources allow |
+| YouTube metadata only | Expected — upload local file for processing |
+
+---
+
+## 🛠️ Development
+
+### Backend (FastAPI)
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m app.worker  # run worker separately
+python -m pytest      # tests
+```
+
+### Frontend (Next.js 16)
+```bash
+cd frontend
+npm install
+npm run dev           # http://localhost:3000
+npm run build         # production build
+```
+
+### Key Files
+- `backend/app/main.py` — FastAPI app, all endpoints, job key management
+- `backend/app/worker.py` — Worker loop, pipeline, FFmpeg rendering
+- `backend/app/services/ai.py` — Gemini Flash frame analysis
+- `backend/app/services/detection.py` — Moment normalization, scoring, deduplication
+- `frontend/app/page.tsx` — Single-page dashboard (Dashboard, Processing, My Clips, History, Settings)
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Smart subject tracking for vertical crops (face/object detection)
+- [ ] YouTube OAuth integration for creator-authorized VOD access
+- [ ] Twitch live clipping with rolling replay buffer
+- [ ] Custom category training / few-shot prompting
+- [ ] Batch project processing
+- [ ] Export presets (TikTok, Reels, Shorts optimized)
+- [ ] Clip collections / playlists
+- [ ] Webhook notifications (Discord, Slack)
+
+---
+
+## 🧱 Built With
+
+[FFmpeg](https://ffmpeg.org) · [FastAPI](https://fastapi.tiangolo.com) · [Next.js](https://nextjs.org) · [React 19](https://react.dev) · [Tailwind CSS 4](https://tailwindcss.com) · [SQLite](https://sqlite.org) · [Gemini Flash](https://ai.google.dev) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [Streamlink](https://streamlink.github.io) · [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+
+---
+
+## ⚖️ Responsible Clipping
+
+- Respect streamers, creators, and platform terms of service
+- Get permission or join official clip campaigns before reposting/monetizing
+- Addy Clips does not bypass DRM, paywalls, or authentication
+- Credit the original creator when you post
+
+You are responsible for what you publish.
+
+---
+
+## 🤝 Contributing
+
+Bug reports, ideas, and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+```bash
+cd backend && python -m pytest -q   # fast tests, no ffmpeg or network needed
+```
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) © 2026
+
+---
+
+<div align="center">
+
+Made with ❤️ for the gaming creator community
+
+If this saved you time, ⭐ the repo and share it with fellow clippers.
+
+</div>

@@ -1,0 +1,20 @@
+{
+  "id": "19d23c43-12b5-4eb3-bb9d-a49121af4e72",
+  "project_id": "34397225-c63d-4d20-a25e-27920456559e",
+  "title": "Audio highlight at 19:35",
+  "description": "Audio loudness spike (-8.6 dBFS)",
+  "hashtags": [],
+  "start": 1155,
+  "end": 1183,
+  "score": 79,
+  "category": "Streamer reactions and emotions",
+  "explanation": "Audio loudness spike (-8.6 dBFS)",
+  "evidence": {
+    "rms_dbfs": -8.6,
+    "z_score": 1.93
+  },
+  "chat_evidence": null,
+  "captions": [],
+  "caption_status": "Disabled",
+  "smart_crop": "center crop"
+}

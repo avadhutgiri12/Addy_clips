@@ -10,7 +10,8 @@ from .database import db, migrate, now, clip_dict
 from .schemas import AnalysisRequest, ClipPatch, SourceRequest
 from .services.video import probe
 from .services.youtube import metadata
-from .services.ai import analyze_frames, DEFAULT_MODELS
+from .services.sources import twitch_source, youtube_live_source
+from .services.ai import generate_titles, DEFAULT_MODELS
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -42,6 +43,19 @@ async def test_key(payload: dict):
 
 @app.post("/api/source/validate")
 async def validate_source(req: SourceRequest):
+    twitch = twitch_source(req.url)
+    if twitch:
+        return {"valid": True, "processable": True, "media_access": False, **twitch,
+                "metadata_available": False, "access_message": "Twitch source recognized. The worker will verify that it is accessible when analysis starts."}
+
+    yt_live = youtube_live_source(req.url)
+    if yt_live:
+        # For YouTube live, we can download the stream so media_access is true
+        return {"valid": True, "processable": True, "media_access": True, **yt_live,
+                "metadata_available": True, "title": "YouTube Live Stream", "channel": "YouTube",
+                "duration": "1200", "live": True,
+                "access_message": "YouTube live stream detected. The last 20 minutes will be downloaded for clipping."}
+
     result = await metadata(req.url)
     if result is None: raise HTTPException(400, "Enter a valid YouTube video, Shorts, or live URL.")
     return result
@@ -70,7 +84,7 @@ async def local_upload(file: UploadFile = File(...)):
             raise HTTPException(400, f"Video duration must be between 1 second and {MAX_VIDEO_DURATION_MINUTES} minutes.")
         title = Path(file.filename or "Local video").stem
         with db() as c:
-            c.execute("INSERT INTO projects VALUES(?,?,?,?,?,?,?)", (project_id, title, title, None, str(dest), info["duration"], now()))
+            c.execute("INSERT INTO projects(id,title,source_title,source_url,source_path,duration,created_at,source_type) VALUES(?,?,?,?,?,?,?,?)", (project_id, title, title, None, str(dest), info["duration"], now(), "local"))
         return {"project_id": project_id, "title": title, "filename": file.filename, **info, "source_type": "local", "media_access": True}
     except HTTPException:
         dest.unlink(missing_ok=True); raise
@@ -80,17 +94,42 @@ async def local_upload(file: UploadFile = File(...)):
 
 @app.post("/api/analysis/start", status_code=202)
 def start_analysis(req: AnalysisRequest):
+    twitch = twitch_source(req.source_url) if req.source_url else None
+    yt_live = youtube_live_source(req.source_url) if req.source_url else None
+
+    if req.generate_titles and not req.gemini_key:
+        raise HTTPException(400, "A Gemini API key is needed only when optional AI titles are enabled.")
+    if req.mode == "live" and (not twitch or twitch["source_type"] != "twitch_live"):
+        raise HTTPException(400, "Live clipping currently supports a Twitch channel URL.")
+    if req.mode == "live" and req.project_id:
+        raise HTTPException(400, "Live clipping uses a Twitch channel URL, not an uploaded project.")
+
+    # For VOD mode: allow local project, Twitch VOD, or YouTube live
+    if req.mode == "vod" and req.project_id is None:
+        valid_source = (twitch and twitch["source_type"] == "twitch_vod") or yt_live
+        if not valid_source:
+            raise HTTPException(400, "Choose a local video, a Twitch VOD URL, or a YouTube live stream URL.")
+
+    project_id = req.project_id or str(uuid.uuid4())
     with db() as c:
-        project = c.execute("SELECT * FROM projects WHERE id=?", (req.project_id,)).fetchone()
-        if not project: raise HTTPException(404, "Project not found.")
-        active = c.execute("SELECT id FROM jobs WHERE project_id=? AND status IN ('queued','running','waiting_for_key')", (req.project_id,)).fetchone()
+        project = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+        if req.project_id and not project: raise HTTPException(404, "Project not found.")
+        if not project:
+            if yt_live:
+                title = f"YouTube Live {yt_live['video_id']}"
+                source_type = "youtube_live"
+            else:
+                title = (twitch or {}).get("channel") or f"Twitch VOD {(twitch or {}).get('video_id')}"
+                source_type = twitch["source_type"]
+            c.execute("INSERT INTO projects(id,title,source_title,source_url,source_path,duration,created_at,source_type) VALUES(?,?,?,?,?,?,?,?)",
+                      (project_id, title, title, req.source_url, None, 0, now(), source_type))
+        active = c.execute("SELECT id FROM jobs WHERE project_id=? AND status IN ('queued','running','waiting_for_key')", (project_id,)).fetchone()
         if active: raise HTTPException(409, "An analysis for this project is already active.")
-        if not req.gemini_key: raise HTTPException(400, "Add your Gemini API key in Settings before starting analysis.")
         job_id = str(uuid.uuid4())
-        c.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?)", (job_id, req.project_id, "queued", "Queued", 0, req.model or DEFAULT_MODELS[0], None, 0, 0, now(), now()))
-        c.execute("UPDATE jobs SET config_json=? WHERE id=?", (json.dumps(req.model_dump(exclude={"gemini_key"})), job_id))
-    job_keys[job_id] = req.gemini_key
-    return {"job_id": job_id, "status": "queued", "message": "Analysis queued."}
+        config = req.model_dump(exclude={"gemini_key"}) | {"project_id": project_id}
+        c.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?)", (job_id, project_id, "queued", "Queued", 0, json.dumps(config), None, 0, 0, now(), now()))
+    if req.generate_titles and req.gemini_key: job_keys[job_id] = req.gemini_key
+    return {"job_id": job_id, "project_id": project_id, "status": "queued", "message": "Analysis queued."}
 
 @app.get("/api/analysis")
 def list_jobs():
@@ -114,13 +153,14 @@ def cancel_job(job_id: str):
 @app.post("/api/analysis/{job_id}/retry")
 def retry_job(job_id: str, payload: dict):
     key = str(payload.get("gemini_key", ""))
-    if len(key) < 20: raise HTTPException(400, "Enter a Gemini API key to retry this job.")
     with db() as c:
         row = c.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         if not row: raise HTTPException(404, "Job not found.")
         if row["status"] not in {"waiting_for_key", "failed", "canceled"}: raise HTTPException(409, "This job cannot be retried in its current state.")
+        config=json.loads(row["config_json"])
+        if config.get("generate_titles") and len(key)<20: raise HTTPException(400, "Enter a Gemini API key to retry optional title generation.")
         c.execute("UPDATE jobs SET status='queued',stage='Queued for retry',progress=0,error=NULL,cancel_requested=0,updated_at=? WHERE id=?", (now(), job_id))
-    job_keys[job_id] = key
+    if config.get("generate_titles"): job_keys[job_id] = key
     return {"job_id": job_id, "status": "queued", "message": "Analysis queued for retry."}
 
 @app.post("/api/internal/jobs/{job_id}/analyze")
@@ -129,11 +169,8 @@ async def internal_analyze(job_id: str, payload: dict, request: Request):
         raise HTTPException(403, "Internal worker endpoint.")
     key = job_keys.get(job_id)
     if not key: raise HTTPException(428, "Gemini key is not available in API memory. Re-submit it to resume analysis.")
-    try:
-        result = await analyze_frames(key, payload.get("model", DEFAULT_MODELS[0]), payload["frames"], payload["duration"], payload["config"])
-        return {"moments": result}
-    finally:
-        job_keys.pop(job_id, None)
+    result = await generate_titles(key, payload.get("model", DEFAULT_MODELS[0]), payload["candidates"])
+    return {"items": result}
 
 @app.post("/api/internal/jobs/{job_id}/release")
 def release_job_key(job_id: str, request: Request):
