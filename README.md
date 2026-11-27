@@ -13,7 +13,7 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-### ⭐ [Star the repo](https://github.com/your-username/addy-clips) to support local-first clipping
+### ⭐ [Star the repo](https://github.com/avadhutgiri12/Addy_clips) to support local-first clipping
 
 </div>
 
@@ -30,18 +30,7 @@ curl -X POST http://localhost:8000/api/source/local-upload \
   -F "file=@gameplay.mp4"
 ```
 
-<table>
-<tr>
-<td align="center" width="50%">
-<img src="docs/assets/dashboard-dark.png" alt="Addy Clips dashboard" width="500"><br>
-<sub>🎮 Dark production workspace — Processing tab shows live worker stages</sub>
-</td>
-<td align="center" width="50%">
-<img src="docs/assets/clips-gallery.png" alt="Clips gallery" width="500"><br>
-<sub>📱 Searchable gallery with vertical/landscape preview and one-click download</sub>
-</td>
-</tr>
-</table>
+> Screenshots coming soon.
 
 ---
 
@@ -110,8 +99,8 @@ flowchart LR
 ### Install
 
 ```bash
-git clone https://github.com/your-username/addy-clips.git
-cd addy-clips
+git clone https://github.com/avadhutgiri12/Addy_clips.git
+cd Addy_clips
 cp .env.example .env
 # Edit .env to add your GEMINI_API_KEY (optional but recommended)
 docker compose up -d --build
@@ -310,13 +299,13 @@ cd backend && python -m pytest -q   # fast tests, no ffmpeg or network needed
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026
+[MIT](LICENSE) © 2026 Addy Clips contributors
 
 ---
 
 <div align="center">
 
-Made with ❤️ for the gaming creator community
+Made with ❤️ for the gaming creator community by **Avadhut Giri** ([@avadhutgiri12](https://github.com/avadhutgiri12) · [@techie.addy](https://instagram.com/techie.addy))
 
 If this saved you time, ⭐ the repo and share it with fellow clippers.
 
